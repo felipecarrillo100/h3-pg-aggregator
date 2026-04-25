@@ -1,124 +1,86 @@
-# H3 PG Aggregator CLI
+# H3 PG Aggregator
 
-A high-performance, production-ready Node.js CLI tool for processing large-scale H3 hexagonal data. It streamlines the ingestion of spatial data into PostGIS, performs hierarchical aggregation, and generates LuciadFusion/LuciadRIA connection descriptors (.pgs).
+A high-performance, production-ready tool to digitalize images into H3 hexagonal grids, upload them to PostGIS, and perform hierarchical spatial aggregation. Designed for seamless integration with **LuciadFusion** and **LuciadRIA**.
 
----
+## 🚀 Key Features
 
-## 🚀 Features
+- **Multi-Format Support**: Seamlessly ingest data from **JSON**, **CSV**, and **Apache Parquet**.
+- **High-Speed Ingestion**: Optimized streaming pipeline capable of **~17,000 cells/sec**.
+- **Hierarchical Aggregation**: Automatically collapses children into parents (e.g., Res 11 → 10 → 9 → 8) using configurable math (`SUM`, `AVG`, `MODE`).
+- **Professional Dashboard**: Real-time progress monitoring with per-phase timing and 100% accurate percentage tracking via pre-scan analysis.
+- **Data Analytics (Optional)**: Generate detailed `summary.md` and `report.json` insights using the `--statistics` flag.
+- **Luciad Integration**: Generates `.pgs` connection descriptors for instant layer deployment in Luciad systems.
 
--   **Multi-Format Ingestion**: Native streaming support for **JSON**, **CSV**, and **Apache Parquet**.
--   **Intelligent Aggregation**: Hierarchically aggregate data across H3 resolutions using multiple methods:
-    -   `SUM`: Total value of children (e.g., Population).
-    -   `AVG`: Average value (e.g., Temperature).
-    -   `MIN` / `MAX`: Extrema values.
-    -   `MODE`: Most frequent value (default, e.g., Land Use Type).
--   **PostGIS Optimization**: Automatically manages tables, spatial indexes, and batch inserts for maximum throughput (~10k+ cells/sec).
--   **LuciadFusion Ready**: Automatically generates `.pgs` connection descriptors for instant integration with the Luciad ecosystem.
--   **Visual Dashboard**: Real-time progress bars and performance metrics powered by `cli-progress`.
--   **Namespaced Config**: Safe environment variable management with `H3_` prefixing.
+## 🛠️ Installation
 
----
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd h3-pg-aggregator
 
-## 📦 Installation
+# Install dependencies
+npm install
 
-### Prerequisites
--   **Node.js**: v18 or higher.
--   **PostgreSQL**: v15 or higher with **PostGIS** extension installed.
-
-### Setup
-1.  Clone the repository and install dependencies:
-    ```bash
-    npm install
-    ```
-2.  (Optional) Install globally to use the command anywhere:
-    ```bash
-    npm install -g .
-    ```
-
----
+# Build the production bundle
+npm run build
+```
 
 ## ⚙️ Configuration
 
-### Environment Variables
-Create a `.env` file in the root or set these in your shell:
+1. **Environment Variables**: Copy `.env.sample` to `.env` and configure your PostGIS credentials:
+   ```env
+   H3_DB_HOST=localhost
+   H3_DB_NAME=h3db
+   H3_DB_USER=h3expert
+   H3_DB_PASSWORD=yourpassword
+   ```
 
-```env
-H3_DB_USER=your_user
-H3_DB_HOST=localhost
-H3_DB_NAME=your_db
-H3_DB_PASSWORD=your_password
-H3_DB_PORT=5432
-```
+2. **Column Mapping**: Define how your data maps to Postgres in `mapping.json`:
+   ```json
+   {
+     "p": {
+       "column": "population",
+       "type": "NUMERIC(11,3)",
+       "method": "SUM",
+       "displayName": "Population Density"
+     }
+   }
+   ```
 
-### Column Mapping (`column_mapping.json`)
-Define how your input data maps to PostGIS columns:
-
-```json
-{
-  "population_count": {
-    "column": "population",
-    "type": "NUMERIC(11,3)",
-    "method": "SUM",
-    "displayName": "Total Population"
-  },
-  "color_hex": {
-    "column": "color",
-    "type": "INTEGER",
-    "method": "MODE",
-    "displayName": "Representative Color"
-  }
-}
-```
-
----
-
-## 🛠️ Usage
+## 📖 Usage
 
 ### Basic Ingestion
-The tool automatically detects format by file extension:
 ```bash
-h3-pg-aggregator data.csv --table climate_data
+h3-pg-aggregator data.json --table city_grid aggregateTo
 ```
 
-### Aggregation
-Aggregate data up 3 levels from the source resolution:
+### Advanced Aggregation (3 levels)
 ```bash
-h3-pg-aggregator data.parquet --table regional_data --aggregate 3
+h3-pg-aggregator data.parquet --table world_data --aggregate 3
 ```
 
-Aggregate specifically to a target resolution (e.g., Resolution 8):
+### With Professional Statistics
 ```bash
-h3-pg-aggregator data.json --aggregateTo 8
+h3-pg-aggregator data.csv --table region_stats --statistics --output ./reports
 ```
 
-### Full Options
-| Flag | Description | Default |
-| :--- | :--- | :--- |
-| `-t, --table` | Database table name | `h3_features` |
-| `-o, --output` | Folder for `.pgs` file | `./output` |
-| `-a, --aggregate` | Levels to aggregate back | `3` |
-| `--aggregateTo` | Target resolution (overrides `-a`) | `null` |
-| `-m, --mapping` | Path to mapping file | `./column_mapping.json` |
-| `-f, --format` | Force format: `json`, `csv`, `parquet` | *Auto* |
+## 📊 CLI Options
+
+| Option | Description                            | Default |
+| :--- |:---------------------------------------| :--- |
+| `-t, --table` | Target PostGIS table name              | `h3_features` |
+| `-o, --output` | Folder for .pgs and reports            | `./output` |
+| `-a, --aggregate` | Number of levels to aggregate up       | `3` |
+| `--aggregateTo` | Target resolution to aggregate down to | `8` |
+| `-m, --mapping` | Path to column mapping JSON file       | `./mapping.json` |
+| `-s, --statistics` | Generate detailed reports              | `false` |
+| `-f, --format` | Force format (json, csv, parquet)      | Auto-detect |
+
+## 🧪 Development & Testing
+
+- **Run Tests**: `npm test`
+- **Dev Mode**: `npm run dev -- <args>` (Run directly from source)
+- **Build**: `npm run build` (Minifies project into `dist/`)
 
 ---
-
-## 🧪 Testing
-
-The project includes a comprehensive test suite covering parsers, database logic, and aggregation math.
-
-```bash
-# Run all tests (Unit + Integration)
-npm test
-
-# Run only logic tests
-npx jest tests/aggregation_logic.test.js
-
-# Run full PostGIS integration test
-npx jest tests/integration.test.js
-```
-
----
-
-## 📄 License
-ISC License. Built for high-performance spatial engineering.
+Built with ❤️ for High-Performance Geospatial Analytics.

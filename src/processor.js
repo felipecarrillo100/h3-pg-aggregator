@@ -7,8 +7,8 @@ const StatsCollector = require('./stats_collector');
 /**
  * Processes H3 data using streaming
  */
-async function processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells = 0) {
-    const stats = new StatsCollector(mapping);
+async function processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells = 0, collectStats = false) {
+    const stats = collectStats ? new StatsCollector(mapping) : null;
     const globalStartTime = Date.now();
     let count = 0;
     const resolutions = new Set();
@@ -33,7 +33,7 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
 
             const resolution = h3.getResolution(h3Index);
             resolutions.add(resolution);
-            stats.collect(h3Index, rowData);
+            if (stats) stats.collect(h3Index, rowData);
 
             const boundary = h3.cellToBoundary(h3Index);
             const points = [...boundary, boundary[0]].map(p => `${p[1]} ${p[0]}`).join(', ');
@@ -64,7 +64,7 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
         ingestMulti.stop();
         
         console.log(colors.green(`\nSuccessfully processed ${count.toLocaleString()} cells.`));
-        stats.finalize(Array.from(resolutions));
+        if (stats) stats.finalize(Array.from(resolutions));
 
         // --- PHASE 2: AGGREGATION ---
         if (aggregateLevels > 0 || aggregateTo !== null) {

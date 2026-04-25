@@ -8,7 +8,7 @@ package-lock.json
 
 # Output & Results
 flintstones_res11_optimized.json
-column_mapping.json
+mapping.json
 output/
 flintstones/
 sampleData/

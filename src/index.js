@@ -20,9 +20,10 @@ program
     .option('-t, --table <name>', 'Table name to store the data', 'h3_features')
     .option('-o, --output <folder>', 'Output folder for .pgs file', './output')
     .option('-a, --aggregate <levels>', 'Number of levels to aggregate back', '3')
-    .option('--aggregateTo <res>', 'Target resolution to aggregate down to')
-    .option('-m, --mapping <path>', 'Path to the column mapping JSON file', './column_mapping.json')
+    .option('--aggregateTo <res>', 'Target resolution to aggregate down to', '8')
+    .option('-m, --mapping <path>', 'Path to the column mapping JSON file', './mapping.json')
     .option('-f, --format <type>', 'Input format: json, csv, parquet (auto-detected by default)')
+    .option('-s, --statistics', 'Generate detailed statistics report (report.json and summary.md)', false)
     .action(async (inputFile, options) => {
         const absoluteInputPath = path.resolve(inputFile);
         const absoluteOutputPath = path.resolve(options.output);
@@ -92,7 +93,7 @@ program
             console.log(colors.yellow('Analyzing data for accurate progress tracking...'));
             const totalCells = await countCells(absoluteInputPath, format);
             
-            const stats = await processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells);
+            const stats = await processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells, options.statistics);
 
             // 4. Generate PGS
             console.log(colors.cyan('\n--- PGS Generation ---'));
@@ -100,14 +101,16 @@ program
             console.log(`.pgs file generated at: ${path.join(absoluteOutputPath, tableName + '.pgs')}`);
 
             // 5. Generate Statistics Report
-            console.log(colors.cyan('\n--- Statistics Report ---'));
-            const report = stats.generateReport();
-            const markdown = stats.generateMarkdown(tableName);
+            if (options.statistics && stats) {
+                console.log(colors.cyan('\n--- Statistics Report ---'));
+                const report = stats.generateReport();
+                const markdown = stats.generateMarkdown(tableName);
 
-            if (!fs.existsSync(absoluteOutputPath)) fs.mkdirSync(absoluteOutputPath, { recursive: true });
-            fs.writeFileSync(path.join(absoluteOutputPath, 'report.json'), JSON.stringify(report, null, 2));
-            fs.writeFileSync(path.join(absoluteOutputPath, 'summary.md'), markdown);
-            console.log(`Statistics report saved to: ${path.join(absoluteOutputPath, 'summary.md')}`);
+                if (!fs.existsSync(absoluteOutputPath)) fs.mkdirSync(absoluteOutputPath, { recursive: true });
+                fs.writeFileSync(path.join(absoluteOutputPath, 'report.json'), JSON.stringify(report, null, 2));
+                fs.writeFileSync(path.join(absoluteOutputPath, 'summary.md'), markdown);
+                console.log(`Statistics report saved to: ${path.join(absoluteOutputPath, 'summary.md')}`);
+            }
 
             const totalDuration = ((Date.now() - globalStartTime) / 1000).toFixed(1);
             console.log(colors.green(`\nTotal Execution Time: ${totalDuration}s`));

@@ -15,6 +15,7 @@ sampleData/
 *.pgs
 report.json
 summary.md
+dist/
 scratch/
 luciad/
 luciad_output/

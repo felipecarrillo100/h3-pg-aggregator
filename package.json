@@ -2,14 +2,19 @@
   "name": "h3-pg-aggregator",
   "description": "Upload H3 data to PostGIS and aggregate to any desired level. Compatible with LuciadFusion connection descriptors (.pgs).",
   "version": "1.0.0",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "h3-pg-aggregator": "src/index.js"
+    "h3-pg-aggregator": "dist/index.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "test": "jest",
-    "digitize": "node src/index.js",
-    "legacy-digitalize": "node src/utilities/digitalizeImage.js"
+    "build": "npm test && npx @vercel/ncc build src/index.js -o dist --minify",
+    "prepublishOnly": "npm run build",
+    "digitize": "node dist/index.js",
+    "dev": "node src/index.js"
   },
   "keywords": [
     "h3",
@@ -34,6 +39,7 @@
     "stream-json": "^2.1.0"
   },
   "devDependencies": {
+    "@vercel/ncc": "^0.38.3",
     "jest": "^29.7.0"
   }
 }

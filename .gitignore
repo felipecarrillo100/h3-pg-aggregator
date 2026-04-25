@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment
+.env
+
+
+# Output & Results
+flintstones_res11_optimized.json
+column_mapping.json
+output/
+flintstones/
+sampleData/
+*.pgs
+report.json
+summary.md
+scratch/
+luciad/
+luciad_output/
+
+# Debug & Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

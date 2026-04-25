@@ -1,0 +1,39 @@
+{
+  "name": "h3-pg-aggregator",
+  "description": "Upload H3 data to PostGIS and aggregate to any desired level. Compatible with LuciadFusion connection descriptors (.pgs).",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "bin": {
+    "h3-pg-aggregator": "src/index.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "digitize": "node src/index.js",
+    "legacy-digitalize": "node src/utilities/digitalizeImage.js"
+  },
+  "keywords": [
+    "h3",
+    "postgis",
+    "postgresql",
+    "luciad",
+    "aggregation",
+    "spatial"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cli-progress": "^3.12.0",
+    "colors": "^1.4.0",
+    "commander": "^14.0.3",
+    "csv-parse": "^6.2.1",
+    "dotenv": "^17.4.2",
+    "h3-js": "^4.4.0",
+    "parquetjs-lite": "^0.8.7",
+    "pg": "^8.20.0",
+    "sharp": "^0.34.5",
+    "stream-json": "^2.1.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

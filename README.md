@@ -51,7 +51,7 @@ npm run build
 
 ### Basic Ingestion
 ```bash
-h3-pg-aggregator data.json --table city_grid aggregateTo
+h3-pg-aggregator data.json --table city_grid aggregateTo 8
 ```
 
 ### Advanced Aggregation (3 levels)

@@ -35,6 +35,13 @@ npm run build
    H3_DB_PASSWORD=yourpassword
    ```
 
+   **Alternatively**, you can pass these directly in your shell:
+
+   * Windows Command Prompt (CMD):*
+   ```cmd
+   set H3_DB_HOST=10.0.0.5 && set H3_DB_NAME=prod_db
+   ```
+
 2. **Column Mapping**: Define how your data maps to Postgres in `mapping.json`:
    ```json
    {

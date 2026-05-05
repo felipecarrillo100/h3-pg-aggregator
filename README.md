@@ -1,15 +1,15 @@
-# H3 PG Aggregator
+# H3 DB Aggregator
 
-A high-performance, production-ready tool to digitalize images into H3 hexagonal grids, upload them to PostGIS, and perform hierarchical spatial aggregation. Designed for seamless integration with **LuciadFusion** and **LuciadRIA**.
+A high-performance, production-ready tool to digitalize images into H3 hexagonal grids, upload them to **PostGIS** or **Microsoft SQL Server (MSSQL)**, and perform hierarchical spatial aggregation. Designed for seamless integration with **LuciadFusion** and **LuciadRIA**.
 
 ## 🚀 Key Features
 
+- **Multi-Database Support**: Native connectors for **PostgreSQL (PostGIS)** and **MSSQL (Spatial)**.
 - **Multi-Format Support**: Seamlessly ingest data from **JSON**, **CSV**, and **Apache Parquet**.
 - **High-Speed Ingestion**: Optimized streaming pipeline capable of **~17,000 cells/sec**.
 - **Hierarchical Aggregation**: Automatically collapses children into parents (e.g., Res 11 → 10 → 9 → 8) using configurable math (`SUM`, `AVG`, `MODE`).
-- **Professional Dashboard**: Real-time progress monitoring with per-phase timing and 100% accurate percentage tracking via pre-scan analysis.
-- **Data Analytics (Optional)**: Generate detailed `summary.md` and `report.json` insights using the `--statistics` flag.
-- **Luciad Integration**: Generates `.pgs` connection descriptors for instant layer deployment in Luciad systems.
+- **Professional Dashboard**: Real-time progress monitoring via pre-scan analysis.
+- **Luciad Integration**: Generates `.pgs` (Postgres) or `.mss` (MSSQL) connection descriptors for instant layer deployment.
 
 ## 🛠️ Installation
 
@@ -18,7 +18,7 @@ A high-performance, production-ready tool to digitalize images into H3 hexagonal
 git clone <your-repo-url>
 cd h3-pg-aggregator
 
-# Install dependencies
+# Install dependencies (includes pg and mssql drivers)
 npm install
 
 # Build the production bundle
@@ -27,22 +27,16 @@ npm run build
 
 ## ⚙️ Configuration
 
-1. **Environment Variables**: Copy `.env.sample` to `.env` and configure your PostGIS credentials:
+1. **Environment Variables**: Copy `.env.sample` to `.env` and configure your credentials. The tool uses a unified set of environment variables for simplicity:
    ```env
    H3_DB_HOST=localhost
-   H3_DB_NAME=h3db
+   H3_DB_NAME=h3dbtest
    H3_DB_USER=h3expert
-   H3_DB_PASSWORD=yourpassword
+   H3_DB_PASSWORD=H3password!
+   H3_DB_PORT=5432  # Use 1433 for MSSQL
    ```
 
-   **Alternatively**, you can pass these directly in your shell:
-
-   * Windows Command Prompt (CMD):*
-   ```cmd
-   set H3_DB_HOST=10.0.0.5 && set H3_DB_NAME=prod_db
-   ```
-
-2. **Column Mapping**: Define how your data maps to Postgres in `mapping.json`:
+2. **Column Mapping**: Define how your data maps to the database in `mapping.json`:
    ```json
    {
      "p": {
@@ -56,38 +50,41 @@ npm run build
 
 ## 📖 Usage
 
-### Basic Ingestion
+### PostGIS Ingestion
 ```bash
-h3-pg-aggregator data.json --table city_grid aggregateTo 8
+# Defaults to postgres
+h3-pg-aggregator data.json --table city_grid --aggregate 3
 ```
 
-### Advanced Aggregation (3 levels)
+### MSSQL Ingestion
 ```bash
-h3-pg-aggregator data.parquet --table world_data --aggregate 3
+# Specify MSSQL via the -d flag
+h3-pg-aggregator data.json --db mssql --table city_grid_ms --aggregate 3
 ```
 
-### With Professional Statistics
+### Advanced Options
 ```bash
-h3-pg-aggregator data.csv --table region_stats --statistics --output ./reports
+h3-pg-aggregator data.parquet --db mssql --table world_data --aggregateTo 8 --statistics
 ```
 
 ## 📊 CLI Options
 
-| Option | Description                            | Default |
-| :--- |:---------------------------------------| :--- |
-| `-t, --table` | Target PostGIS table name              | `h3_features` |
-| `-o, --output` | Folder for .pgs and reports            | `./output` |
-| `-a, --aggregate` | Number of levels to aggregate up       | `3` |
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `-d, --db` | Database type: `postgres` or `mssql` | `postgres` |
+| `-t, --table` | Target table name | `h3_features` |
+| `-o, --output` | Folder for descriptors (.pgs/.mss) and reports | `./output` |
+| `-a, --aggregate` | Number of levels to aggregate up | `3` |
 | `--aggregateTo` | Target resolution to aggregate down to | `8` |
-| `-m, --mapping` | Path to column mapping JSON file       | `./mapping.json` |
-| `-s, --statistics` | Generate detailed reports              | `false` |
-| `-f, --format` | Force format (json, csv, parquet)      | Auto-detect |
+| `-m, --mapping` | Path to column mapping JSON file | `./mapping.json` |
+| `-s, --statistics` | Generate detailed reports (`summary.md`) | `false` |
+| `-f, --format` | Force format (json, csv, parquet) | Auto-detect |
 
 ## 🧪 Development & Testing
 
 - **Run Tests**: `npm test`
-- **Dev Mode**: `npm run dev -- <args>` (Run directly from source)
-- **Build**: `npm run build` (Minifies project into `dist/`)
+- **Dev Mode**: `npm run dev -- <args>`
+- **Build**: `npm run build`
 
 ---
 Built with ❤️ for High-Performance Geospatial Analytics.

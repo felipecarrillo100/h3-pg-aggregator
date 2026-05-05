@@ -7,7 +7,7 @@ const StatsCollector = require('./stats_collector');
 /**
  * Processes H3 data using streaming
  */
-async function processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells = 0, collectStats = false) {
+async function processH3Data(provider, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells = 0, collectStats = false) {
     const stats = collectStats ? new StatsCollector(mapping) : null;
     const globalStartTime = Date.now();
     let count = 0;
@@ -48,7 +48,7 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
             count++;
 
             if (batch.length >= 1000) {
-                await insertBatch(client, tableName, mapping, batch);
+                await provider.insertBatch(tableName, batch);
                 batch.length = 0;
                 const elapsed = (Date.now() - ingestionStartTime) / 1000;
                 uploadBar.update(count, { speed: Math.round(count / (elapsed || 1)) });
@@ -56,7 +56,7 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
         }
 
         if (batch.length > 0) {
-            await insertBatch(client, tableName, mapping, batch);
+            await provider.insertBatch(tableName, batch);
         }
 
         const ingestionDuration = ((Date.now() - ingestionStartTime) / 1000).toFixed(1);
@@ -86,7 +86,7 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
                     const aggBar = aggMulti.create(100, 0, { status: `Aggregating ${currentRes}->${targetRes}`, speed: 0 });
                     
                     const aggStartTime = Date.now();
-                    const actualCount = await aggregateLevel(client, tableName, mapping, currentRes, aggBar);
+                    const actualCount = await aggregateLevel(provider, tableName, mapping, currentRes, aggBar);
                     const aggDuration = ((Date.now() - aggStartTime) / 1000).toFixed(1);
 
                     aggBar.setTotal(actualCount || 1);
@@ -100,6 +100,10 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
             aggMulti.stop();
         }
         
+        // --- PHASE 3: INDEXING ---
+        console.log(colors.cyan('\n--- Finalizing Database (Indexing) ---'));
+        await provider.createIndexes(tableName);
+        
         return stats;
     } catch (err) {
         if (ingestMulti) ingestMulti.stop();
@@ -107,40 +111,9 @@ async function processH3Data(client, dataStream, tableName, mapping, aggregateLe
     }
 }
 
-async function insertBatch(client, tableName, mapping, rows) {
-    const colNames = ['id', 'geom', 'resolution', ...Object.values(mapping).map(m => m.column)];
-    const values = [];
-    const params = [];
-    let paramIndex = 1;
-
-    for (const row of rows) {
-        const placeholders = [];
-        placeholders.push(`$${paramIndex++}`);
-        params.push(row[0]);
-        placeholders.push(`ST_GeomFromText($${paramIndex++}, 4326)`);
-        params.push(row[1]);
-        placeholders.push(`$${paramIndex++}`);
-        params.push(row[2]);
-        for (let i = 3; i < row.length; i++) {
-            placeholders.push(`$${paramIndex++}`);
-            params.push(row[i]);
-        }
-        values.push(`(${placeholders.join(', ')})`);
-    }
-
-    const setClause = colNames.map(col => `${col} = EXCLUDED.${col}`).join(', ');
-    const query = `
-        INSERT INTO ${tableName} (${colNames.join(', ')})
-        VALUES ${values.join(', ')}
-        ON CONFLICT (id) DO UPDATE SET ${setClause};
-    `;
-    await client.query(query, params);
-}
-
-async function aggregateLevel(client, tableName, mapping, sourceLevel, aggBar) {
+async function aggregateLevel(provider, tableName, mapping, sourceLevel, aggBar) {
     const targetLevel = sourceLevel - 1;
-    const countRes = await client.query(`SELECT COUNT(*) FROM ${tableName} WHERE resolution = $1`, [sourceLevel]);
-    const totalSourceRows = parseInt(countRes.rows[0].count);
+    const totalSourceRows = await provider.countRows(tableName, sourceLevel);
     if (totalSourceRows === 0) return 0;
 
     aggBar.setTotal(totalSourceRows);
@@ -149,8 +122,7 @@ async function aggregateLevel(client, tableName, mapping, sourceLevel, aggBar) {
     const colConfigs = Object.values(mapping);
     const colNames = colConfigs.map(m => m.column);
     
-    const query = `SELECT id, ${colNames.join(', ')} FROM ${tableName} WHERE resolution = $1`;
-    const { rows } = await client.query(query, [sourceLevel]);
+    const rows = await provider.fetchRows(tableName, sourceLevel);
     if (rows.length === 0) return 0;
 
     const parentGroups = new Map();
@@ -185,11 +157,11 @@ async function aggregateLevel(client, tableName, mapping, sourceLevel, aggBar) {
         }
         batch.push(row);
         if (batch.length >= 1000) {
-            await insertBatch(client, tableName, mapping, batch);
+            await provider.insertBatch(tableName, batch);
             batch.length = 0;
         }
     }
-    if (batch.length > 0) await insertBatch(client, tableName, mapping, batch);
+    if (batch.length > 0) await provider.insertBatch(tableName, batch);
     return totalSourceRows;
 }
 
@@ -217,3 +189,4 @@ module.exports = {
     processH3Data,
     aggregateLevel
 };
+

@@ -3,9 +3,9 @@ const colors = require('colors');
 const { Command } = require('commander');
 const path = require('path');
 const fs = require('fs');
-const { getClient, setupTable, dbConfig } = require('./db');
 const { processH3Data } = require('./processor');
-const { generatePgs } = require('./pgs_generator');
+const PostgresProvider = require('./db/PostgresProvider');
+const MssqlProvider = require('./db/MssqlProvider');
 require('dotenv').config();
 
 const { createJSONStream, createCSVStream, createParquetGenerator, countCells } = require('./parsers');
@@ -14,11 +14,12 @@ const program = new Command();
 
 program
     .name('h3-pg-aggregator')
-    .description('Production-ready H3 Image Digitalizer and PostGIS Uploader')
+    .description('Production-ready H3 Image Digitalizer and Database Uploader (PostGIS & MSSQL)')
     .version('1.0.0')
     .argument('<input-file>', 'JSON, CSV, or Parquet file containing H3 cells')
+    .option('-d, --db <type>', 'Database type: postgres or mssql', 'postgres')
     .option('-t, --table <name>', 'Table name to store the data', 'h3_features')
-    .option('-o, --output <folder>', 'Output folder for .pgs file', './output')
+    .option('-o, --output <folder>', 'Output folder for descriptor and reports', './output')
     .option('-a, --aggregate <levels>', 'Number of levels to aggregate back', '3')
     .option('--aggregateTo <res>', 'Target resolution to aggregate down to', '8')
     .option('-m, --mapping <path>', 'Path to the column mapping JSON file', './mapping.json')
@@ -30,6 +31,7 @@ program
         const tableName = options.table;
         const aggregateLevels = parseInt(options.aggregate);
         const aggregateTo = options.aggregateTo ? parseInt(options.aggregateTo) : null;
+        const dbType = options.db.toLowerCase();
 
         // 1. Environment Validation
         const requiredEnv = ['H3_DB_USER', 'H3_DB_HOST', 'H3_DB_NAME', 'H3_DB_PASSWORD'];
@@ -39,16 +41,23 @@ program
             console.error('\x1b[31mError: Missing required environment variables:\x1b[0m', missingEnv.join(', '));
             console.log('\nPlease set these in your shell or create a .env file:');
             console.log('----------------------------------------------------');
-            console.log('H3_DB_USER=h3expert\nH3_DB_HOST=localhost\nH3_DB_NAME=h3dbtest\nH3_DB_PASSWORD=h3password\nH3_DB_PORT=5432');
+            console.log('H3_DB_USER=h3expert\nH3_DB_HOST=localhost\nH3_DB_NAME=h3dbtest\nH3_DB_PASSWORD=H3password!\nH3_DB_PORT=5432 (or 1433 for MSSQL)');
             console.log('----------------------------------------------------');
             process.exit(1);
         }
+
+        const dbConfig = {
+            user: process.env.H3_DB_USER,
+            host: process.env.H3_DB_HOST,
+            database: process.env.H3_DB_NAME,
+            password: process.env.H3_DB_PASSWORD,
+            port: process.env.H3_DB_PORT,
+        };
 
         // 2. Load mapping
         const mappingPath = path.resolve(options.mapping);
         if (!fs.existsSync(mappingPath)) {
             console.error(`\x1b[31mError: Mapping file not found at ${mappingPath}\x1b[0m`);
-            console.log('\nPlease ensure your mapping file exists or specify it with -m <path>.');
             process.exit(1);
         }
         const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
@@ -62,21 +71,28 @@ program
             process.exit(1);
         }
 
-        console.log(`--- H3 PG Aggregator CLI ---`);
+        console.log(`--- H3 DB Aggregator CLI ---`);
+        console.log(`Database: ${dbType.toUpperCase()}`);
         console.log(`Input: ${absoluteInputPath} (${format.toUpperCase()})`);
         console.log(`Mapping: ${mappingPath}`);
         console.log(`Table: ${tableName}`);
         console.log(`Output Folder: ${absoluteOutputPath}`);
-        console.log(`Aggregate Levels: ${aggregateLevels}`);
-        if (aggregateTo !== null) console.log(`Aggregate To: ${aggregateTo} (Priority)`);
         console.log(`----------------------------\n`);
 
-        let client;
+        let provider;
         try {
-            client = await getClient();
+            if (dbType === 'mssql') {
+                provider = new MssqlProvider(dbConfig, mapping);
+            } else if (dbType === 'postgres') {
+                provider = new PostgresProvider(dbConfig, mapping);
+            } else {
+                throw new Error(`Unsupported database type: ${dbType}`);
+            }
+
+            await provider.connect();
 
             // 1. Setup Table
-            await setupTable(client, tableName, mapping);
+            await provider.setupTable(tableName);
 
             // 2. Create Data Stream
             let dataStream;
@@ -93,12 +109,12 @@ program
             console.log(colors.yellow('Analyzing data for accurate progress tracking...'));
             const totalCells = await countCells(absoluteInputPath, format);
             
-            const stats = await processH3Data(client, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells, options.statistics);
+            const stats = await processH3Data(provider, dataStream, tableName, mapping, aggregateLevels, aggregateTo, totalCells, options.statistics);
 
-            // 4. Generate PGS
-            console.log(colors.cyan('\n--- PGS Generation ---'));
-            generatePgs(absoluteOutputPath, tableName, dbConfig, mapping);
-            console.log(`.pgs file generated at: ${path.join(absoluteOutputPath, tableName + '.pgs')}`);
+            // 4. Generate Descriptor
+            console.log(colors.cyan(`\n--- ${dbType.toUpperCase()} Descriptor Generation ---`));
+            await provider.generateDescriptor(absoluteOutputPath, tableName);
+            console.log(`Descriptor file generated in: ${absoluteOutputPath}`);
 
             // 5. Generate Statistics Report
             if (options.statistics && stats) {
@@ -118,7 +134,7 @@ program
             console.error(`Fatal Error:`, err);
             process.exit(1);
         } finally {
-            if (client) await client.end();
+            if (provider) await provider.close();
         }
     });
 
